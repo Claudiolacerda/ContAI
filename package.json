@@ -1,0 +1,8 @@
+{
+  "name": "contai",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "geist": "^1.7.0"
+  }
+}

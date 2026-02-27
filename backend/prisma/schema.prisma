@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum StatusContabil {
+  EM_DIA
+  PENDENTE
+  ATRASADO
+}
+
+enum RegimeTributario {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  MEI
+}
+
+enum TipoLancamento {
+  RECEITA
+  DESPESA
+}
+
+enum StatusPagamento {
+  PAGO
+  PENDENTE
+  VENCIDO
+}
+
+enum StatusTarefa {
+  BACKLOG
+  EM_ANDAMENTO
+  REVISAO
+  CONCLUIDA
+}
+
+enum Prioridade {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum StatusObrigacao {
+  PENDENTE
+  PAGO
+  ATRASADO
+  DISPENSADO
+}
+
+enum PermissaoCliente {
+  VISUALIZAR
+  EDITAR
+  ADMIN
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model Contador {
+  id           String   @id @default(uuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  crc          String?
+  telefone     String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  clientes ContadorCliente[]
+  sessoes  Sessao[]
+
+  @@map("contadores")
+}
+
+model Sessao {
+  id          String   @id @default(uuid())
+  contadorId  String
+  refreshToken String  @db.Text
+  expiresAt   DateTime
+  criadoEm    DateTime @default(now())
+
+  contador Contador @relation(fields: [contadorId], references: [id], onDelete: Cascade)
+
+  @@index([contadorId])
+  @@map("sessoes")
+}
+
+model Cliente {
+  id               String           @id @default(uuid())
+  nomeEmpresa      String
+  cnpj             String           @unique
+  regimeTributario RegimeTributario @default(SIMPLES_NACIONAL)
+  statusContabil   StatusContabil   @default(EM_DIA)
+  nomeResponsavel  String
+  email            String
+  telefone         String?
+  endereco         String?
+  observacoes      String?
+  ativo            Boolean          @default(true)
+  criadoEm         DateTime         @default(now())
+  atualizadoEm     DateTime         @updatedAt
+
+  contadores  ContadorCliente[]
+  lancamentos Lancamento[]
+  obrigacoes  ObrigacaoFiscal[]
+  tarefas     Tarefa[]
+  documentos  Documento[]
+
+  @@map("clientes")
+}
+
+model ContadorCliente {
+  id         String           @id @default(uuid())
+  contadorId String
+  clienteId  String
+  permissao  PermissaoCliente @default(EDITAR)
+  ativo      Boolean          @default(true)
+  criadoEm  DateTime         @default(now())
+
+  contador Contador @relation(fields: [contadorId], references: [id], onDelete: Cascade)
+  cliente  Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([contadorId, clienteId])
+  @@index([contadorId])
+  @@index([clienteId])
+  @@map("contador_clientes")
+}
+
+model Lancamento {
+  id              String          @id @default(uuid())
+  clienteId       String
+  tipo            TipoLancamento
+  categoria       String
+  descricao       String
+  valor           Decimal         @db.Decimal(15, 2)
+  dataCompetencia DateTime        @db.Date
+  dataVencimento  DateTime?       @db.Date
+  dataPagamento   DateTime?       @db.Date
+  status          StatusPagamento @default(PENDENTE)
+  notaFiscal      String?
+  observacoes     String?
+  criadoEm        DateTime        @default(now())
+  atualizadoEm    DateTime        @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, dataCompetencia])
+  @@index([clienteId, tipo, dataCompetencia])
+  @@index([clienteId, status])
+  @@map("lancamentos")
+}
+
+model ObrigacaoFiscal {
+  id             String          @id @default(uuid())
+  clienteId      String
+  tipo           String          // DARF, GUIA_INSS, SPED, DIRF, etc.
+  descricao      String
+  dataVencimento DateTime        @db.Date
+  valor          Decimal?        @db.Decimal(15, 2)
+  status         StatusObrigacao @default(PENDENTE)
+  guiaGerada     Boolean         @default(false)
+  arquivoUrl     String?
+  observacoes    String?
+  criadoEm       DateTime        @default(now())
+  atualizadoEm   DateTime        @updatedAt
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, dataVencimento])
+  @@index([clienteId, status])
+  @@map("obrigacoes_fiscais")
+}
+
+model Tarefa {
+  id          String       @id @default(uuid())
+  clienteId   String
+  contadorId  String
+  titulo      String
+  descricao   String?
+  status      StatusTarefa @default(BACKLOG)
+  prioridade  Prioridade   @default(MEDIA)
+  prazo       DateTime?
+  tags        String?      @db.Text
+  criadoEm    DateTime     @default(now())
+  atualizadoEm DateTime    @updatedAt
+  concluidoEm DateTime?
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, status])
+  @@index([contadorId])
+  @@map("tarefas")
+}
+
+model Documento {
+  id          String   @id @default(uuid())
+  clienteId   String
+  nome        String
+  tipo        String   // extrato, nf, folha_pagamento, etc.
+  arquivoUrl  String?
+  recebido    Boolean  @default(false)
+  obrigatorio Boolean  @default(true)
+  mesRef      String?  // "2025-02"
+  observacoes String?
+  criadoEm    DateTime @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId])
+  @@map("documentos")
+}
