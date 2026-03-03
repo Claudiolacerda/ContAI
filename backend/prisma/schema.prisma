@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
+
 
 enum StatusContabil {
   EM_DIA
@@ -60,7 +60,7 @@ enum PermissaoCliente {
   ADMIN
 }
 
-// ─── Models ─────────────────────────────────────────────────────────────────
+
 
 model Contador {
   id           String   @id @default(uuid())
